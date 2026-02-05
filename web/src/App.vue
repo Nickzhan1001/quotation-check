@@ -16,6 +16,14 @@ const fileInputRef = ref(null);
 const DEFAULT_TABLE_ROW_LIMIT = 60;
 const tableRowLimits = ref({});
 
+const tableTitleMap = {
+  ID: '編號',
+  Feature: '主功能',
+  Description: '說明',
+  Instructions: '操作說明',
+  Quote: '報價',
+};
+
 let restoreLimitsAfterPrint = null;
 const onAfterPrint = () => {
   if (restoreLimitsAfterPrint) {
@@ -341,17 +349,22 @@ function normalizeHeaderRow(headerRow, colCount) {
 }
 
 function getDefaultHeaderName(index) {
-  if (index === 3) return '操作說明';
-  if (index === 4) return '報價';
+  if (index === 3) return 'Instructions';
+  if (index === 4) return 'Quote';
   return `欄位${index + 1}`;
+}
+
+function mapTableHeaderTitle(header) {
+  const key = safeString(header).trim();
+  return tableTitleMap[key] || key;
 }
 
 function guessColumnWidth(header, index) {
   const h = safeString(header).trim();
   if (index === 0) return '7ch';
   if (/^(編號|序號|id|no\.?|項次)$/i.test(h)) return '7ch';
-  if (/主功能|功能|項目/.test(h)) return '18ch';
-  if (/說明|內容|描述|備註|規格|需求/.test(h)) return '44ch';
+  if (/主功能|功能|項目|feature/i.test(h)) return '18ch';
+  if (/說明|內容|描述|備註|規格|需求|description|instructions/i.test(h)) return '44ch';
   return '';
 }
 
@@ -377,9 +390,10 @@ function normalizeTableRows(table) {
     .map((header, index) => ({
       index,
       header: safeString(header).trim(),
+      displayHeader: mapTableHeaderTitle(header),
       width: colWidths[index] || '',
     }))
-    .filter((col) => col.header !== '報價');
+    .filter((col) => col.header !== '報價' && col.header !== 'Quote');
 
   // body 保留原始列，顯示時再做 trim；避免一載入就把整張大表格全量轉換。
   const body = rows.slice(1);
@@ -519,28 +533,6 @@ onBeforeUnmount(() => {
           </dl>
         </section>
 
-        <section class="card" v-if="doc">
-          <div class="card__title">統計</div>
-          <div class="stats">
-            <div class="stat">
-              <div class="stat__k">段落</div>
-              <div class="stat__v">{{ paragraphs.length }}</div>
-            </div>
-            <div class="stat">
-              <div class="stat__k">表格</div>
-              <div class="stat__v">{{ tables.length }}</div>
-            </div>
-            <div class="stat">
-              <div class="stat__k">章節</div>
-              <div class="stat__v">{{ titles.length }}</div>
-            </div>
-          </div>
-
-          <div class="chips" v-if="paragraphStats.length">
-            <span class="chip" v-for="([k, v], idx) in paragraphStats" :key="idx">{{ k }}：{{ v }}</span>
-          </div>
-        </section>
-
         <section class="card card--tip">
           <div class="card__title">注意</div>
           <div class="tip">
@@ -609,14 +601,7 @@ onBeforeUnmount(() => {
                     <thead>
                       <tr>
                         <th v-for="(col, hi) in t.visibleColumns" :key="hi">
-                          <input
-                            v-if="editMode"
-                            class="cell-input cell-input--header"
-                            type="text"
-                            :value="cellValue(t.headerRow, col.index)"
-                            @input="updateCell(i, 0, col.index, $event.target.value)"
-                          />
-                          <span v-else>{{ col.header }}</span>
+                          <span>{{ col.displayHeader }}</span>
                         </th>
                       </tr>
                     </thead>
@@ -633,7 +618,7 @@ onBeforeUnmount(() => {
                             :value="cellValue(row, col.index)"
                             @input="updateCell(i, ri + 1, col.index, $event.target.value)"
                           />
-                          <span v-else>{{ cellText(row, col.index) }}</span>
+                          <span v-else class="cell-text">{{ cellText(row, col.index) }}</span>
                         </td>
                       </tr>
                     </tbody>

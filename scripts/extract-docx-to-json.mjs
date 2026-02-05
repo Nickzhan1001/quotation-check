@@ -63,6 +63,30 @@ function collectText(node, out = []) {
     return out;
   }
   if (typeof node !== 'object') return out;
+  if (Object.prototype.hasOwnProperty.call(node, 'w:br')) {
+    const br = node['w:br'];
+    if (Array.isArray(br)) {
+      br.forEach(() => out.push('\n'));
+    } else {
+      out.push('\n');
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(node, 'w:cr')) {
+    const cr = node['w:cr'];
+    if (Array.isArray(cr)) {
+      cr.forEach(() => out.push('\n'));
+    } else {
+      out.push('\n');
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(node, 'w:tab')) {
+    const tab = node['w:tab'];
+    if (Array.isArray(tab)) {
+      tab.forEach(() => out.push(' '));
+    } else {
+      out.push(' ');
+    }
+  }
   if (Object.prototype.hasOwnProperty.call(node, 'w:t')) {
     const t = node['w:t'];
     if (typeof t === 'string') out.push(t);
@@ -84,11 +108,25 @@ function collectText(node, out = []) {
 /** 移除 OOXML 常見雜訊：樣式用十六進位碼、字型名等（保留純數字如日期） */
 function cleanText(s) {
   if (typeof s !== 'string') return s;
-  return s
+  const cleaned = s
     .replace(/\b[0-9A-Fa-f]{8}\b/g, (m) => (/[A-Fa-f]/.test(m) ? '' : m))
     .replace(/\b(微軟正黑體|Times New Roman|Arial|eastAsia|Calibri|宋體|黑體)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\r\n?/g, '\n');
+
+  const lines = cleaned.split('\n').map((line) => line.replace(/\s+/g, ' ').trim());
+  const collapsed = [];
+  let emptyStreak = 0;
+  for (const line of lines) {
+    if (!line) {
+      emptyStreak += 1;
+      if (emptyStreak <= 1) collapsed.push('');
+      continue;
+    }
+    emptyStreak = 0;
+    collapsed.push(line);
+  }
+
+  return collapsed.join('\n').trim();
 }
 
 function classifyParagraph(text) {
@@ -125,7 +163,10 @@ function getParagraphText(pNode) {
 function getCellText(tcNode) {
   const pNodes = ensureArray(tcNode['w:p']);
   if (!pNodes.length) return '';
-  const raw = pNodes.map((p) => collectText(p, []).join('').trim()).filter(Boolean).join(' ');
+  const raw = pNodes
+    .map((p) => collectText(p, []).join('').trim())
+    .filter((text) => text !== '')
+    .join('\n');
   return cleanText(raw);
 }
 
@@ -223,10 +264,7 @@ function getTableGridWidth(tblNode) {
 function tableRowsToObjects(rows) {
   if (!rows.length) return [];
   const maxCols = Math.max(...rows.map(r => r.length));
-  const headers = rows[0].map((cell, i) => {
-    const header = cell?.trim();
-    return header || getDefaultHeaderName(i);
-  });
+  const headers = rows[0].map((cell, i) => normalizeHeaderCell(cell, i));
   if (headers.length < maxCols) {
     for (let i = headers.length; i < maxCols; i++) {
       headers.push(getDefaultHeaderName(i));
@@ -237,14 +275,31 @@ function tableRowsToObjects(rows) {
     headers.forEach((h, i) => {
       obj[h] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
     });
+    obj.type = 'original';
     return obj;
   });
 }
 
 function getDefaultHeaderName(index) {
-  if (index === 3) return '操作說明';
-  if (index === 4) return '報價';
+  if (index === 0) return 'ID';
+  if (index === 3) return 'Instructions';
+  if (index === 4) return 'Quote';
   return `欄位${index + 1}`;
+}
+
+function mapHeaderNameToEnglish(header) {
+  if (header === '編號') return 'ID';
+  if (header === '主功能') return 'Feature';
+  if (header === '說明') return 'Description';
+  if (header === '操作說明') return 'Instructions';
+  if (header === '報價') return 'Quote';
+  return header;
+}
+
+function normalizeHeaderCell(cell, index) {
+  const raw = String(cell ?? '').trim();
+  if (!raw) return getDefaultHeaderName(index);
+  return mapHeaderNameToEnglish(raw);
 }
 
 /** 將列資料正規化成固定欄位寬度的字串陣列 */
@@ -283,12 +338,66 @@ function ensureQuoteColumn(rows) {
   if (!rows.length) return rows;
   const headerRow = rows[0] ?? [];
   const headerNames = headerRow.map((cell) => String(cell ?? '').trim());
-  if (headerNames.some((name) => name === '報價')) return rows;
+  if (headerNames.some((name) => name === '報價' || name === 'Quote')) return rows;
 
-  headerRow.push('報價');
+  headerRow.push('Quote');
   for (const row of rows.slice(1)) {
     if (Array.isArray(row)) row.push('');
   }
+  return rows;
+}
+
+/** 若表格沒有「編號」欄位，補上一欄空值（置於第一欄） */
+function ensureIdColumn(rows) {
+  if (!rows.length) return rows;
+  const headerRow = rows[0] ?? [];
+  const headerNames = headerRow.map((cell) => String(cell ?? '').trim());
+  if (headerNames.some((name) => name === '編號' || name === 'ID')) return rows;
+
+  headerRow.unshift('ID');
+  for (const row of rows.slice(1)) {
+    if (Array.isArray(row)) row.unshift('');
+  }
+  return rows;
+}
+
+function mapTableHeadersToEnglish(rows) {
+  if (!rows.length) return rows;
+  const headerRow = rows[0];
+  for (let i = 0; i < headerRow.length; i++) {
+    headerRow[i] = normalizeHeaderCell(headerRow[i], i);
+  }
+  return rows;
+}
+
+function alignRowWidths(rows) {
+  if (!rows.length) return rows;
+  const width = Math.max(...rows.map((row) => row.length));
+  for (const row of rows) {
+    while (row.length < width) row.push('');
+  }
+  return rows;
+}
+
+function fillSequentialIds(rows) {
+  if (!rows.length) return rows;
+  const headerRow = rows[0] ?? [];
+  const idIndex = headerRow.findIndex((cell) => {
+    const name = String(cell ?? '').trim();
+    return name === 'ID' || name === '編號';
+  });
+
+  if (idIndex < 0) return rows;
+
+  const dataRows = rows.slice(1);
+  const hasAnyId = dataRows.some((row) => String(row?.[idIndex] ?? '').trim() !== '');
+  if (hasAnyId) return rows;
+
+  dataRows.forEach((row, index) => {
+    if (!Array.isArray(row)) return;
+    row[idIndex] = String(index + 1);
+  });
+
   return rows;
 }
 
@@ -309,7 +418,13 @@ function extractBody(body) {
   }
 
   const tablesRaw = ensureArray(body['w:tbl'] ?? []).map((tbl) => extractTable(tbl));
-  const tables = tablesRaw.map(removeDuplicateHeaderRows).map(ensureQuoteColumn);
+  const tables = tablesRaw
+    .map(removeDuplicateHeaderRows)
+    .map(ensureIdColumn)
+    .map(ensureQuoteColumn)
+    .map(mapTableHeadersToEnglish)
+    .map(alignRowWidths)
+    .map(fillSequentialIds);
   const tablesAsObjects = tables.map(tableRowsToObjects);
 
   return {

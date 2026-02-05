@@ -626,6 +626,10 @@ body {
   background: rgba(11, 90, 108, 0.06);
 }
 
+.cell-text {
+  white-space: pre-line;
+}
+
 .table th:last-child,
 .table td:last-child {
   border-right: none;
