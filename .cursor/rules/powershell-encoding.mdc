@@ -1,0 +1,24 @@
+---
+description: PowerShell 含中文路徑參數的編碼注意事項
+alwaysApply: true
+---
+
+# PowerShell 與中文路徑參數
+
+## 問題
+
+在 PowerShell 中傳入**包含中文字元的檔案路徑**作為參數（例如 `-o`、`--output`）時，會發生編碼錯誤，導致路徑被錯誤解析（例如中文變成亂碼），腳本無法正確寫入或讀取檔案。
+
+## 建議做法
+
+- **避免**在 PowerShell 命令列中直接傳遞含中文的輸出路徑，例如：
+  - `node script.mjs -o quote-analysis/input/報價單.json` 可能失敗
+- **改為**不帶參數執行，讓腳本使用**預設的輸入與輸出路徑**：
+  - 例如：`node scripts/extract-docx-to-json.mjs`
+- 若必須指定含中文的路徑，可考慮：
+  - 在專案內使用英文或數字檔名／路徑，或
+  - 改用其他 shell（如 Git Bash）或從腳本內讀取設定檔／環境變數來取得路徑。
+
+## 適用情境
+
+執行本專案中會接受 `-o`／`--output` 或檔案路徑參數的 Node 腳本時，若在 Windows PowerShell 下執行，請依上述方式避開中文路徑參數的編碼問題。

@@ -1,0 +1,52 @@
+---
+description: docx 擷取腳本與 fast-xml-parser 解析 OOXML 時的注意事項，避免提報日期等內容遺失
+alwaysApply: false
+globs: scripts/extract-docx-to-json.mjs
+---
+
+# docx 擷取腳本 — 避免再次出錯
+
+修改或擴充 `scripts/extract-docx-to-json.mjs`（或類似以 fast-xml-parser 解析 Word OOXML 的腳本）時，請遵守下列規則，避免已修過的錯誤重現。
+
+## 1. 文字節點可能是 number / boolean
+
+**問題**：fast-xml-parser 會把純數字、布林值從 XML 文字轉成 JavaScript 的 `number` / `boolean`（例如 `<w:t>20</w:t>` → `[20]`）。若 `collectText` 只處理 `string`，會漏掉日期、編號等數字。
+
+**做法**：在收集文字時，對 `number`、`boolean` 一律轉成字串再 push，例如：
+
+```javascript
+if (typeof node === 'number' || typeof node === 'boolean') {
+  out.push(String(node));
+  return out;
+}
+```
+
+## 2. 多個同名節點可能是「數字鍵物件」
+
+**問題**：解析器有時會把多個同名子節點（如 `w:r`、`w:p`）變成 `{ 0: x, 1: y, ... }` 而非真實陣列。若只做 `Array.isArray(value) ? value : [value]`，會把整包當成單一元素，漏掉其他段落或 run。
+
+**做法**：
+
+- 使用 **`isArray`** 選項強制指定標籤為陣列：`isArray: (name) => ['w:p', 'w:r', 'w:tbl', 'w:tr', 'w:tc', 'w:t'].includes(name)`。
+- 正規化時支援「數字鍵物件」：若 `value` 為物件且所有 key 皆為數字，則 `Object.keys(value).sort(數字排序)` 後依序取 value 當成陣列使用。
+
+## 3. cleanText 不要刪掉純數字（如日期）
+
+**問題**：用「長段十六進位」正則（如 `\b[0-9A-Fa-f]{6,}\b`）刪 OOXML 樣式碼時，純數字字串（如 `20251219`、`20251219`）也會被刪，導致「提報日期：20251219」變成「提報日期：..」。
+
+**做法**：只刪除「含英文字母 A–F」的長段 hex（真正的樣式碼），保留純數字，例如：
+
+```javascript
+.replace(/\b[0-9A-Fa-f]{6,}\b/g, (m) => (/[A-Fa-f]/.test(m) ? '' : m))
+```
+
+## 4. 跳過屬性／繪圖節點，只遍歷內文
+
+**問題**：遍歷到 `w:rPr`、`w:pPr`、`w:drawing`、`w:instrText` 等會帶出字型名、樣式碼、base64 等雜訊。
+
+**做法**：在遞迴收集文字時跳過上述標籤（及 `w:tblPr`、`w:tcPr`、`w:trPr`、`w:sectPr`、`w:pict`、`w:object`、`w:fldChar`），只從 `w:t` 與內文相關節點收集。
+
+## 5. 執行與路徑
+
+- 在 **PowerShell** 下避免對 `-o`／`--output` 傳入**含中文的路徑**；改用預設路徑或英文路徑。詳見 `powershell-encoding.mdc`。
+- 執行紀錄與範例指令見 `quote-analysis/docs/execution-log.md`。
