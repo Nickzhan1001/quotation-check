@@ -134,14 +134,113 @@ function getCellText(tcNode) {
   return cleanText(raw);
 }
 
+/** 取得表格cell的合併屬性 */
+function getCellSpan(tcNode) {
+  const tcPr = ensureObject(tcNode['w:tcPr']);
+  const gridSpan = parseInt(tcPr['w:gridSpan']?.['@_w:val'] || tcPr['w:gridSpan']?.['@_w:val'] || 1, 10);
+  const vMerge = tcPr['w:vMerge']?.['@_w:val'];
+  return {
+    gridSpan: isNaN(gridSpan) ? 1 : gridSpan,
+    vMerge: vMerge || null
+  };
+}
+
+/** 解析表格，正確處理合併單元格 */
+function extractTable(tblNode) {
+  const rowNodes = ensureArray(tblNode['w:tr']);
+  const gridWidth = getTableGridWidth(tblNode);
+
+  let prevVMergeState = [];
+  const rows = [];
+
+  for (const tr of rowNodes) {
+    const cellNodes = ensureArray(tr['w:tc']);
+    const row = [];
+    let colIndex = 0;
+    const currentVMergeState = [...prevVMergeState];
+
+    for (let i = 0; i < cellNodes.length; i++) {
+      const tc = cellNodes[i];
+      const { gridSpan, vMerge } = getCellSpan(tc);
+      const text = getCellText(tc);
+
+      while (colIndex < currentVMergeState.length && currentVMergeState[colIndex]) {
+        row.push('');
+        colIndex++;
+      }
+
+      if (vMerge === 'continue' || vMerge === '1') {
+        if (colIndex < prevVMergeState.length) {
+          currentVMergeState[colIndex] = true;
+          row.push(text || '');
+        } else if (text) {
+          row.push(text);
+        } else {
+          row.push('');
+        }
+      } else {
+        currentVMergeState[colIndex] = false;
+        for (let j = 0; j < gridSpan; j++) {
+          if (j === 0) {
+            row.push(text);
+          } else {
+            row.push('');
+          }
+        }
+        colIndex += gridSpan;
+      }
+    }
+
+    while (row.length < gridWidth) {
+      row.push('');
+    }
+
+    rows.push(row);
+    prevVMergeState = currentVMergeState;
+  }
+
+  return rows;
+}
+
+/** 取得表格的網格寬度（最大列數） */
+function getTableGridWidth(tblNode) {
+  const tblGrid = ensureObject(tblNode['w:tblGrid']);
+  const gridCols = ensureArray(tblGrid['w:gridCol']);
+  if (gridCols.length > 0) {
+    return gridCols.length;
+  }
+
+  const rowNodes = ensureArray(tblNode['w:tr']);
+  let maxCols = 0;
+  for (const tr of rowNodes) {
+    const cellNodes = ensureArray(tr['w:tc']);
+    let rowCols = 0;
+    for (const tc of cellNodes) {
+      const { gridSpan } = getCellSpan(tc);
+      rowCols += gridSpan;
+    }
+    maxCols = Math.max(maxCols, rowCols);
+  }
+  return maxCols || 3;
+}
+
 /** 將表格資料列轉成「第一列當標題」的物件陣列 */
 function tableRowsToObjects(rows) {
   if (!rows.length) return [];
-  const headers = rows[0].map((cell, i) => cell.trim() || `欄位${i + 1}`);
+  const maxCols = Math.max(...rows.map(r => r.length));
+  const headers = rows[0].map((cell, i) => {
+    const header = cell?.trim();
+    return header || `欄位${i + 1}`;
+  });
+  if (headers.length < maxCols) {
+    for (let i = headers.length; i < maxCols; i++) {
+      headers.push(`欄位${i + 1}`);
+    }
+  }
   return rows.slice(1).map((row) => {
     const obj = {};
     headers.forEach((h, i) => {
-      obj[h] = row[i] !== undefined ? String(row[i]).trim() : '';
+      obj[h] = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
     });
     return obj;
   });
@@ -163,13 +262,7 @@ function extractBody(body) {
     }
   }
 
-  const tablesRaw = ensureArray(body['w:tbl'] ?? []).map((tbl) => {
-    const rowList = ensureArray(tbl['w:tr'] ?? []);
-    return rowList.map((tr) => {
-      const cells = ensureArray(tr['w:tc'] ?? []);
-      return cells.map((tc) => getCellText(tc));
-    });
-  });
+  const tablesRaw = ensureArray(body['w:tbl'] ?? []).map((tbl) => extractTable(tbl));
 
   const tables = tablesRaw;
   const tablesAsObjects = tables.map(tableRowsToObjects);
