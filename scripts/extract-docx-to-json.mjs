@@ -230,11 +230,11 @@ function tableRowsToObjects(rows) {
   const maxCols = Math.max(...rows.map(r => r.length));
   const headers = rows[0].map((cell, i) => {
     const header = cell?.trim();
-    return header || `欄位${i + 1}`;
+    return header || getDefaultHeaderName(i);
   });
   if (headers.length < maxCols) {
     for (let i = headers.length; i < maxCols; i++) {
-      headers.push(`欄位${i + 1}`);
+      headers.push(getDefaultHeaderName(i));
     }
   }
   return rows.slice(1).map((row) => {
@@ -244,6 +244,57 @@ function tableRowsToObjects(rows) {
     });
     return obj;
   });
+}
+
+function getDefaultHeaderName(index) {
+  if (index === 3) return '操作說明';
+  if (index === 4) return '報價';
+  return `欄位${index + 1}`;
+}
+
+/** 將列資料正規化成固定欄位寬度的字串陣列 */
+function normalizeRow(row, width) {
+  const normalized = [];
+  for (let i = 0; i < width; i++) {
+    const cell = row?.[i];
+    normalized.push(cell !== undefined && cell !== null ? String(cell).trim() : '');
+  }
+  return normalized;
+}
+
+/** 判斷是否為重複表頭列 */
+function isDuplicateHeaderRow(row, headerRow, width) {
+  if (!headerRow || !headerRow.length) return false;
+  const normalizedRow = normalizeRow(row, width);
+  const normalizedHeader = normalizeRow(headerRow, width);
+  return normalizedRow.every((cell, index) => cell === normalizedHeader[index]);
+}
+
+/** 忽略表格中重複出現的表頭列（常見於分頁續表） */
+function removeDuplicateHeaderRows(rows) {
+  if (!rows.length) return rows;
+  const width = Math.max(...rows.map((row) => row.length));
+  const headerRow = rows[0];
+  const cleaned = [headerRow];
+  for (const row of rows.slice(1)) {
+    if (isDuplicateHeaderRow(row, headerRow, width)) continue;
+    cleaned.push(row);
+  }
+  return cleaned;
+}
+
+/** 若表格沒有「報價」欄位，補上一欄空值 */
+function ensureQuoteColumn(rows) {
+  if (!rows.length) return rows;
+  const headerRow = rows[0] ?? [];
+  const headerNames = headerRow.map((cell) => String(cell ?? '').trim());
+  if (headerNames.some((name) => name === '報價')) return rows;
+
+  headerRow.push('報價');
+  for (const row of rows.slice(1)) {
+    if (Array.isArray(row)) row.push('');
+  }
+  return rows;
 }
 
 function extractBody(body) {
@@ -263,8 +314,7 @@ function extractBody(body) {
   }
 
   const tablesRaw = ensureArray(body['w:tbl'] ?? []).map((tbl) => extractTable(tbl));
-
-  const tables = tablesRaw;
+  const tables = tablesRaw.map(removeDuplicateHeaderRows).map(ensureQuoteColumn);
   const tablesAsObjects = tables.map(tableRowsToObjects);
 
   return {

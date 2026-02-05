@@ -3,9 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "web"
+  ],
   "scripts": {
     "extract-docx": "node scripts/extract-docx-to-json.mjs",
-    "extract-docx:file": "node scripts/extract-docx-to-json.mjs"
+    "extract-docx:file": "node scripts/extract-docx-to-json.mjs",
+    "web:dev": "npm -w web run dev",
+    "web:build": "npm -w web run build",
+    "web:preview": "npm -w web run preview"
   },
   "dependencies": {
     "fast-xml-parser": "^4.3.2",
