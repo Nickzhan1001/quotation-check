@@ -40,7 +40,7 @@ npm install
 
 不帶參數執行時，會使用預設輸入與輸出路徑：
 
-- **預設輸入**：`quote-analysis/input/20251219_昶青碼頭系統功能報價單.docx`
+- **預設輸入**：`quote-analysis/input/` 內**最新修改時間**的 `.docx`
 - **預設輸出**：`quote-analysis/output/` 下，檔名改為 `.json`
 
 ```bash

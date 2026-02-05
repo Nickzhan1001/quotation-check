@@ -5,7 +5,7 @@
  * 使用方式：
  *   node extract-docx-to-json.mjs [輸入.docx] [-o 輸出.json]
  *   node extract-docx-to-json.mjs
- *     → 預設輸入：quote-analysis/input/20251219_昶青碼頭系統功能報價單.docx
+ *     → 預設輸入：quote-analysis/input/ 內最新 .docx
  *     → 預設輸出：quote-analysis/output/（檔名改為 .json）
  */
 
@@ -17,12 +17,7 @@ import { XMLParser } from 'fast-xml-parser';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, '..');
-const DEFAULT_INPUT = path.join(
-  PROJECT_ROOT,
-  'quote-analysis',
-  'input',
-  '20251219_昶青碼頭系統功能報價單.docx'
-);
+const DEFAULT_INPUT_DIR = path.join(PROJECT_ROOT, 'quote-analysis', 'input');
 const DEFAULT_OUTPUT_DIR = path.join(PROJECT_ROOT, 'quote-analysis', 'output');
 
 /** 將可能是單一值、陣列、或數字鍵物件（解析器產物）正規化為陣列 */
@@ -362,29 +357,62 @@ function parseArgs(argv) {
     }
   }
   return {
-    inputPath: inputPath ? path.resolve(inputPath) : DEFAULT_INPUT,
+    inputPath: inputPath ? path.resolve(inputPath) : null,
     outputPath: outputPath
       ? path.resolve(outputPath)
       : null,
   };
 }
 
+async function findLatestDocx(inputDir) {
+  const entries = await fs.readdir(inputDir, { withFileTypes: true });
+  const docxFiles = entries
+    .filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.docx')
+    .map((entry) => entry.name);
+
+  if (!docxFiles.length) return null;
+
+  let latestName = null;
+  let latestTime = 0;
+
+  for (const name of docxFiles) {
+    const fullPath = path.join(inputDir, name);
+    const stat = await fs.stat(fullPath);
+    const mtime = stat.mtimeMs || 0;
+    if (mtime >= latestTime) {
+      latestTime = mtime;
+      latestName = name;
+    }
+  }
+
+  return latestName ? path.join(inputDir, latestName) : null;
+}
+
 async function main() {
   const { inputPath, outputPath } = parseArgs(process.argv);
+  const resolvedInput = inputPath || await findLatestDocx(DEFAULT_INPUT_DIR);
+
+  if (!resolvedInput) {
+    console.error('錯誤：找不到可用的 .docx');
+    console.error('  路徑：', DEFAULT_INPUT_DIR);
+    console.error('請將 .docx 放入 input 資料夾，或傳入檔案路徑參數');
+    process.exit(1);
+  }
+
   const resolvedOutput =
     outputPath ||
-    path.join(DEFAULT_OUTPUT_DIR, path.basename(inputPath, '.docx') + '.json');
+    path.join(DEFAULT_OUTPUT_DIR, path.basename(resolvedInput, '.docx') + '.json');
 
   try {
-    await fs.access(inputPath);
+    await fs.access(resolvedInput);
   } catch {
     console.error('錯誤：找不到檔案');
-    console.error('  路徑：', inputPath);
+    console.error('  路徑：', resolvedInput);
     console.error('請確認檔案是否存在，或使用正確的路徑');
     process.exit(1);
   }
 
-  const inputExt = path.extname(inputPath).toLowerCase();
+  const inputExt = path.extname(resolvedInput).toLowerCase();
   if (inputExt !== '.docx') {
     console.error('錯誤：輸入檔案必須是 .docx 格式');
     console.error('  偵測到副檔名：', inputExt);
@@ -393,7 +421,7 @@ async function main() {
 
   try {
     await fs.mkdir(path.dirname(resolvedOutput), { recursive: true });
-    const json = await extractDocxToJson(inputPath);
+    const json = await extractDocxToJson(resolvedInput);
     await fs.writeFile(resolvedOutput, JSON.stringify(json, null, 2), 'utf8');
     console.log('已完成，輸出至：', resolvedOutput);
     console.log('  段落數量：', json.paragraphs?.length || 0);
