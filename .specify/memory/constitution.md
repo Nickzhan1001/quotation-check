@@ -1,50 +1,89 @@
-# [PROJECT_NAME] 憲章
-<!-- 例：Spec 憲章、TaskFlow 憲章等 -->
+<!--
+Sync Impact Report
+==================
+Version change: 0.1.0 → 1.0.0 (MAJOR)
+- Initial constitution establishment from AGENTS.md and project specs
+
+Modified principles:
+- N/A (new constitution)
+
+Added sections:
+- All 5 core principles (I-V)
+- Development workflow section
+- Governance section
+
+Removed sections:
+- N/A (template replaced entirely)
+
+Templates requiring updates: N/A (constitution is the source)
+- tasks-template.md: ✅ Compatible (already supports MVP, testability concepts)
+- plan-template.md: ✅ Compatible (already references constitution)
+- spec-template.md: ✅ Compatible (already has user stories, testability)
+
+Follow-up TODOs: None
+-->
+
+# 報價單擷取 憲章
 
 ## 核心原則
 
-### [PRINCIPLE_1_NAME]
-<!-- 例：I. 先建庫（Library-First） -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- 例：每個功能先以可獨立測試的函式庫形式存在；函式庫必須自足、可測、可文件化；避免只有「組織用途」的空殼模組 -->
+### I. 高品質
+所有程式碼必須遵循專案既有的程式碼風格準則（參考 `AGENTS.md`），
+確保可讀性、可維護性與一致性。
 
-### [PRINCIPLE_2_NAME]
-<!-- 例：II. CLI 介面 -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- 例：每個函式庫應提供 CLI 入口；文字輸入/輸出協定：stdin/args → stdout，錯誤 → stderr；同時支援 JSON 與人類可讀格式 -->
+### II. 可測試
+函式必須具備單一職責，便於獨立測試；
+每個使用者故事都必須可獨立驗證。
 
-### [PRINCIPLE_3_NAME]
-<!-- 例：III. 先測試（不可協商） -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- 例：TDD 為強制：先寫測試 → 使用者確認 → 測試失敗 → 才能實作；嚴格遵守 Red-Green-Refactor -->
+### III. MVP 優先
+先交付最小可行產品，確認核心價值後再逐步擴充功能。
+避免過早實作非必要的複雜性。
 
-### [PRINCIPLE_4_NAME]
-<!-- 例：IV. 整合測試 -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- 例：需要整合測試的重點：新契約的契約測試、契約變更、服務間通訊、共用 schema -->
+### IV. 避免 Overdesign
+在滿足需求的前提下，選擇最簡單的解決方案。
+除非有明確且必要的理由，否則不引入額外抽象層或複雜架構。
 
-### [PRINCIPLE_5_NAME]
-<!-- 例：V. 可觀測性、VI. 版本與破壞性變更、VII. 簡化優先 -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- 例：文字 I/O 讓除錯更容易；需結構化日誌；或：採用 MAJOR.MINOR.BUILD；或：先做最簡單可行方案，遵守 YAGNI -->
+### V. 正體中文
+使用者介面、文件、錯誤訊息和程式碼註解皆使用正體中文。
+技術術語和識別符可維持英文。
 
-## [SECTION_2_NAME]
-<!-- 例：額外限制、安全要求、效能標準等 -->
+## 開發流程
 
-[SECTION_2_CONTENT]
-<!-- 例：技術棧要求、合規標準、部署政策等 -->
+### 憲章高於其他慣例
+憲章原則具有最高優先級，任何程式碼變更都必須符合憲章。
 
-## [SECTION_3_NAME]
-<!-- 例：開發流程、審查流程、品質門檻等 -->
+### 複雜度必須有理由
+偏離憲章原則（如引入額外抽象層）時，必須在 `plan.md` 中記錄：
+- 違規內容
+- 必要原因
+- 為何拒絕更簡方案
 
-[SECTION_3_CONTENT]
-<!-- 例：Code review 要求、測試門檻、上線核准流程等 -->
+### Code Review
+所有變更必須通過 Code Review，確認符合憲章原則。
+
+### 測試門檻
+每個使用者故事都必須能獨立驗證通過後才能交付。
+
+### 增量交付
+依優先級（P1 → P2 → P3）逐步實作，每個增量都必須可獨立運作。
 
 ## 治理
-<!-- 例：憲章高於其他慣例；修訂必須有文件、核准、遷移計畫 -->
 
-[GOVERNANCE_RULES]
-<!-- 例：所有 PR/Review 必須確認符合憲章；複雜度需有理由；執行時以 [GUIDANCE_FILE] 作為行為準則 -->
+### 版本政策
+- **MAJOR**：憲章原則的移除或重新定義（向後不相容）
+- **MINOR**：新增原則或大幅擴充現有原則
+- **PATCH**：措辭澄清、修正、非語意性微調
 
-**版本**： [CONSTITUTION_VERSION] | **生效日**： [RATIFICATION_DATE] | **最後修訂**： [LAST_AMENDED_DATE]
-<!-- 例：版本：2.1.1 | 生效日：2025-06-13 | 最後修訂：2025-07-16 -->
+### 修訂程序
+1. 提出憲章修訂提案
+2. 記錄變更理由與影響評估
+3. 更新版本號與日期
+4. 確保相關模板與文件同步
+
+### 合規審查
+所有 PR/Review 都必須確認符合憲章；
+偏離原則時必須有書面理由並獲核准。
+
+---
+
+**版本**：1.0.0 | **生效日**：2026-02-06 | **最後修訂**：2026-02-06
